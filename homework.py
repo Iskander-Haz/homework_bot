@@ -70,29 +70,20 @@ def get_api_answer(timestamp):
             f'Запрос не успешный. '
             f'Код ответа {homework_statuses.status_code} отличный от 200'
         )
-    else:
-        return homework_statuses.json()
+
+    return homework_statuses.json()
 
 
 def check_response(response):
     """Проверяет ответ API на соответствие документации."""
     if not isinstance(response, dict):
-        raise (
-            Exception('Ответ API не соответствие документации. Не словарь')
-            and logger.error('Отсутствие ожидаемых ключей в ответе API')
-        )
+        raise TypeError('Ответ API не соответствие документации. Не словарь')
     if 'homeworks' not in response.keys():
-        raise (
-            Exception('Ответ API не соответствие документации. '
-                      'Отсутствует ключ "homeworks"')
-            and logger.error('Отсутствует ключ "homeworks" в ответе API')
-        )
+        raise Exception('Ответ API не соответствие документации. '
+                        'Отсутствует ключ "homeworks"')
     if 'current_date' not in response.keys():
-        raise (
-            Exception('Ответ API не соответствие документации. '
-                      'Отсутствует ключ "current_date"')
-            and logger.error('Отсутствует ключ "current_date" в ответе API')
-        )
+        raise Exception('Ответ API не соответствие документации. '
+                        'Отсутствует ключ "current_date"')
     homeworks = response['homeworks']
     if not isinstance(homeworks, list):
         raise TypeError('Ответ API не соответствие документации. '
@@ -103,16 +94,14 @@ def check_response(response):
 def parse_status(homework):
     """Извлекает из информации о домашней работе статус."""
     if 'homework_name' not in homework:
-        raise KeyError and logger.error('В ответе API домашки '
-                                        'нет ключа "homework_name".')
+        raise KeyError('В ответе API домашки нет ключа "homework_name".')
     homework_name = homework['homework_name']
     if 'status' not in homework:
-        raise KeyError and logger.error('В ответе API домашки '
-                                        'нет ключа "status".')
+        raise KeyError('В ответе API домашки нет ключа "status".')
     homework_status = homework['status']
     if homework_status not in HOMEWORK_VERDICTS:
-        raise KeyError and logger.error(f'В словаре {HOMEWORK_VERDICTS} '
-                                        f'нет ключа {homework_status}.')
+        raise KeyError(f'В словаре {HOMEWORK_VERDICTS} '
+                       f'нет ключа {homework_status}.')
     verdict = HOMEWORK_VERDICTS[homework_status]
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
@@ -134,25 +123,25 @@ def main():
         try:
             response = get_api_answer(timestamp)
             timestamp = response.get('current_date')
-            # check_response возвращает homeworks! не забудь изменить main()!
-            if len(check_response(response)) == 0:
-                logger.debug('Не появился новый статус — список работ пуст')
-                break
-            homework = check_response(response)[0]
-            message = parse_status(homework)
-            if last_message == message:
-                logger.debug('Не появился новый статус — список работ пуст')
-                break
 
-            send_message(bot, message)
-            last_message = message
+            # if len(check_response(response)) == 0:
+
+            homeworks = check_response(response)
+            if homeworks:
+                message = parse_status(homeworks[0])
+                if last_message != message:
+                    send_message(bot, message)
+                    last_message = message
+            else:
+                logger.debug('Не появился новый статус — список работ пуст')
 
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
-            if last_message == message:
-                logger.debug('Статус не обновился')
-                break
-            logger.error(message, exc_info=True)
+            if last_message != message:
+                send_message(bot, message)
+                last_message = message
+            else:
+                logger.error(message, exc_info=True)
         finally:
             time.sleep(RETRY_PERIOD)
 
